@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mapa z markerami i rankingiem 5 najszybszych autobusów</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        #map {
+            width: 100%;
+            height: 400px;
+        }
+        #ranking {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pojazdy na mapie</h1>
+    <div id="map"></div>
+    
+    <h2>Ranking 5 najszybszych autobusów</h2>
+    <ul id="ranking"></ul>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const apiEndpoint = "https://www.zditm.szczecin.pl/api/v1/vehicles";
+
+            const map = L.map("map").setView([53.42894, 14.55302], 12);
+
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+            const markers = [];
+            const rankingList = document.getElementById("ranking");
+
+            function addMarkersAndRanking(data) {
+    
+                markers.forEach(marker => marker.removeFrom(map));
+                markers.length = 0;
+
+               
+                data.data.forEach(item => {
+                    const marker = L.marker([item.latitude, item.longitude])
+                        .bindPopup(
+                            `Numer linii: ${item.line_number}<br/>Kierunek: ${item.direction}<br/>Numer pojazdu: ${item.vehicle_number}<br/>Prędkość: ${item.velocity} km/h`
+                        )
+                        .addTo(map);
+
+                    markers.push(marker);
+                });
+
+             
+                data.data.sort((a, b) => b.velocity - a.velocity);
+
+                
+                rankingList.innerHTML = "";
+                for (let i = 0; i < 5 && i < data.data.length; i++) {
+                    const item = data.data[i];
+
+                    
+                    let color;
+                    if (item.velocity >= 65) {
+                        color = "red";
+                    } else if (item.velocity >= 45) {
+                        color = "orange";
+                    } else {
+                        color = "green";
+                    }
+
+                    const listItem = document.createElement("li");
+                    listItem.innerHTML = `Numer linii: ${item.line_number}, Kierunek: ${item.direction}, Numer pojazdu: ${item.vehicle_number}, Prędkość: <span style="color: ${color};">${item.velocity} km/h</span>`;
+                    rankingList.appendChild(listItem);
+                }
+            }
+
+            fetchData(); 
+            setInterval(fetchData, 15000); 
+
+            function fetchData() {
+                fetch(apiEndpoint)
+                    .then(response => response.json())
+                    .then(data => {
+                        addMarkersAndRanking(data);
+                    })
+                    .catch(error => {
+                        console.error("Wystąpił błąd:", error);
+                    });
+            }
+        });
+    </script>
+</body>
+</html>

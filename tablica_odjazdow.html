@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Informacje z API</title>
+</head>
+<body>
+    <h1>Przystanek autobusowy</h1>
+    <div id="stopInfo"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const apiEndpoint = "https://www.zditm.szczecin.pl/api/v1/displays/10914"; // Zmień na rzeczywisty adres API
+
+            // Funkcja do pobierania danych z API
+            function fetchData() {
+                fetch(apiEndpoint)
+                    .then(response => response.json())
+                    .then(data => {
+                        displayStopInfo(data);
+                    })
+                    .catch(error => {
+                        console.error("Wystąpił błąd:", error);
+                    });
+            }
+
+            // Funkcja do wyświetlania informacji o przystanku
+            function displayStopInfo(data) {
+                const stopInfoElement = document.getElementById("stopInfo");
+                const stopName = data.stop_name;
+                const stopNumber = data.stop_number;
+                const departures = data.departures.slice(0, 5); // Ograniczenie do pierwszych 5 odjazdów
+
+                const infoHTML = `
+                    <p>Nazwa przystanku: ${stopName}</p>
+                    <p>Numer przystanku: ${stopNumber}</p>
+                    <h2>Odloty:</h2>
+                    <ul>
+                        ${departures.map(departure => `
+                            <li>
+                                Linia: ${departure.line_number} 
+                                Kierunek: ${departure.direction}
+                                Czas rzeczywisty: ${departure.time_real !== null ? departure.time_real : (departure.time_scheduled !== null ? departure.time_scheduled : "Brak danych")}
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+
+                stopInfoElement.innerHTML = infoHTML;
+            }
+
+            // Wywołanie funkcji fetchData() do pobrania danych z API
+            fetchData();
+        });
+    </script>
+</body>
+</html>
