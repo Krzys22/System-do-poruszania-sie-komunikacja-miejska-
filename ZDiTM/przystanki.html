@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <style>
+        .leaflet-popup-content-wrapper{
+            background-color: black;
+        }
+        @font-face {
+            font-family: 'Digital-7';
+            src: url('/Users/szymonmarczak/Desktop/ZDiTM/digital-7.ttf') format('truetype');
+        }
+
+        #map {
+            width: 100%;
+            height: 700px;
+        }
+        /* Dodaj niestandardowe style dla popupu */
+        .custom-popup {
+            max-width: 500px; /* Maksymalna szerokość */
+           
+        }
+        .leaflet-popup-content {
+
+            background-image:url('/Users/szymonmarczak/Desktop/ZDiTM/Tablica.png'); /* Tło popupu z przezroczystością */
+            background-size: 320px 200px;
+            color: white; /* Biała czcionka */
+            padding: 10px; /* Dodatkowe wewnętrzne marginesy dla lepszego wyglądu */
+
+           
+        }
+        /* Ustaw szerokość komórki "Kierunek" na sztywno */
+        table tr td.direction {
+            min-width: 185px;/* Ustaw szerokość kolumny "Kierunek" na sztywno na 150 pikseli */
+            max-width: 185px;
+        }
+        table tr td.line {
+            min-width: 48px;
+            padding-left: 5px;
+        }
+         table {
+            margin-top: 42px; /* Dodatkowy margines na górze */
+        }
+        nazwa_przystanku{
+            color:black;
+        }
+    </style>
+</head>
+<body>
+    <h1>Przystanki</h1>
+    <div id="map"></div>
+
+    <script>
+        
+        document.addEventListener("DOMContentLoaded", function() {
+            const stopsEndpoint = "https://www.zditm.szczecin.pl/api/v1/stops"; // Endpoint dla przystanków
+            const map = L.map("map").setView([53.42894, 14.55302], 12);
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+            const customIcon = L.icon({
+                iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/przystanek_grafika.png',
+                iconSize: [26, 48], // Rozmiary ikony
+                iconAnchor: [16, 32], // Punkt zakotwiczenia ikony
+                popupAnchor: [0, -32] // Punkt zakotwiczenia popupu
+            });
+            const markers = L.markerClusterGroup();
+            fetchData();
+            function fetchData() {
+                fetch(stopsEndpoint)
+                    .then(response => response.json())
+                    .then(data => {
+                        displayStopsOnMap(data);
+                    })
+                    .catch(error => {
+                        console.error("Wystąpił błąd:", error);
+                    });
+            }
+            function displayStopsOnMap(data) {
+                data.data.forEach(item => {
+                    // Dodawanie markerów na mapie
+                    const marker = L.marker([item.latitude, item.longitude], { icon: customIcon })
+                        .bindPopup(`Nazwa: ${item.name}`, { className: 'custom-popup' });
+
+                    marker.on('popupopen', function () {
+                        // Obsługa zdarzenia kliknięcia na markerze
+                        displayDeparturesInfo(marker, item);
+                    });
+
+                    markers.addLayer(marker);
+                });
+                map.addLayer(markers);
+            }
+
+            function displayDeparturesInfo(marker, item) {
+                const timetablesEndpoint = `https://www.zditm.szczecin.pl/api/v1/displays/${item.number}`;
+                function updatePopupContent() {
+                    const now = new Date();
+                    fetch(timetablesEndpoint)
+                        .then(response => response.json())
+                        .then(timetablesData => {
+                            const firstTwoDepartures = timetablesData.departures.slice(0, 5); // Ograniczenie do 5 odjazdów
+                            const departuresInfo = firstTwoDepartures.map(departure => {
+                                const departureTime = departure.time_real !== null ? ` ${departure.time_real} min` : (departure.time_scheduled !== null ? `${departure.time_scheduled}` : "Brak informacji");
+                                const line = departure.line_number !== null ? `${departure.line_number}` : "";
+                                const direction = departure.direction !== null ? `${departure.direction}` : "";
+                                return `
+                                    <tr style=  color:#faa702; font-size: 14px; font-family: 'Digital-7', sans-serif; >
+                                        <td class="line">${line}</td>
+                                        <td class="direction">${direction}</td>
+                                        <td class="departureTime">${departureTime}</td>
+                                    </tr>
+                                `;
+                            }).join('');
+                            const table = `
+                                <table>
+                                    <tr>
+                                        <th></th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
+                                    ${departuresInfo}
+                                </table>
+                            `;
+                            marker.getPopup().setContent(`
+                                ${item.name}
+                                <span style=";font-family:Digital-7; color:#faa702; font-size:16px;">${now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes()}</span> 
+                                <br>${table}`) ;
+                        })
+                        .catch(error => {
+                            console.error("Wystąpił błąd:", error);
+                        });
+                }
+
+                updatePopupContent(); // Pierwsze wywołanie funkcji aktualizującej zawartość popupu
+
+                setInterval(updatePopupContent, 15000); // Odświeżanie co 30 sekund
+                
+            }
+        });
+    </script>
+</body>
+</html>
