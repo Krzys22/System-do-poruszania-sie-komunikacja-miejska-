@@ -32,14 +32,36 @@
             const markers = [];
             const rankingList = document.getElementById("ranking");
 
+            // Przygotuj niestandardowe ikony dla tramwajów i autobusów
+            const tramIcon = new L.Icon({
+                iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/tramwaj_grafika.png',
+                iconSize: [30, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            const busIcon = new L.Icon({
+                iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/bus_grafika.png',
+                iconSize: [30, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
             function addMarkersAndRanking(data) {
-    
                 markers.forEach(marker => marker.removeFrom(map));
                 markers.length = 0;
 
-               
                 data.data.forEach(item => {
-                    const marker = L.marker([item.latitude, item.longitude])
+                   
+                    // Ustal ikonę na podstawie rodzaju transportu
+                    let icon;
+                    if (item.vehicle_type === 'tram') {
+                        icon = tramIcon;
+                    } else if (item.vehicle_type === 'bus') {
+                        icon = busIcon;
+                    }
+
+                    const marker = L.marker([item.latitude, item.longitude], { icon: icon })
                         .bindPopup(
                             `Numer linii: ${item.line_number}<br/>Kierunek: ${item.direction}<br/>Numer pojazdu: ${item.vehicle_number}<br/>Prędkość: ${item.velocity} km/h`
                         )
@@ -48,15 +70,17 @@
                     markers.push(marker);
                 });
 
-             
                 data.data.sort((a, b) => b.velocity - a.velocity);
 
-                
                 rankingList.innerHTML = "";
                 for (let i = 0; i < 5 && i < data.data.length; i++) {
                     const item = data.data[i];
 
-                    
+                    // Pomijaj metro
+                    if (item.vehicle_type === 'metro') {
+                        continue;
+                    }
+
                     let color;
                     if (item.velocity >= 65) {
                         color = "red";

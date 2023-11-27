@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa z trasą</title>
+  <!-- Dodaj link do Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div>
+    <label for="routeVariant">Wybierz wariant trasy:</label>
+    <select id="routeVariant"></select>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Dodaj skrypt Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script>
+    // Utwórz mapę i ustaw widok
+    var map = L.map('map').setView([53.4571634728, 14.4884117153], 13);
+
+    // Dodaj warstwę mapy
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Pobierz dane z API
+    // Odczytaj parametr lineId z adresu URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const lineId = urlParams.get('lineId');
+
+    if (lineId) {
+      fetch(`https://www.zditm.szczecin.pl/api/v1/trajectories/${lineId}`)
+        .then(response => response.json())
+        .then(data => {
+          // Sprawdź, czy istnieją dane o trasie
+          if (data.features && data.features.length > 0) {
+            // Zainicjuj tablicę do przechowywania współrzędnych trasy
+            var routeCoordinates = [];
+
+            // Zainicjuj tablicę do przechowywania wariantów trasy
+            var routeVariants = [];
+
+            // Iteruj przez elementy features i dodaj współrzędne trasy oraz opcje wariantów
+            data.features.forEach(feature => {
+              // Pobierz współrzędne z geometrii trasy
+              var coordinates = feature.geometry.coordinates;
+
+              // Pobierz numer wariantu trasy
+              var variantNumber = feature.properties.route_variant_number;
+
+              // Dodaj współrzędne trasy do tablicy
+              coordinates.forEach(coordinate => {
+                routeCoordinates.push([coordinate[1], coordinate[0]]);
+              });
+
+              // Dodaj wariant trasy do tablicy
+              routeVariants.push({
+                variantNumber: variantNumber,
+                variantType: feature.properties.route_variant_type
+              });
+            });
+
+            // Dodaj opcje do listy rozwijanej wyboru wariantu trasy
+            var routeVariantSelect = document.getElementById("routeVariant");
+            routeVariants.forEach(variant => {
+              var option = document.createElement("option");
+              option.value = variant.variantNumber;
+              option.text = "Wariant " + variant.variantNumber;
+              routeVariantSelect.add(option);
+            });
+
+            // Dodaj linię łączącą współrzędne trasy dla domyślnego wariantu
+            var defaultVariant = routeVariants[0].variantNumber;
+            var defaultCoordinates = data.features.find(feature => feature.properties.route_variant_number === defaultVariant).geometry.coordinates;
+            var defaultRouteCoordinates = defaultCoordinates.map(coordinate => [coordinate[1], coordinate[0]]);
+            var polyline = L.polyline(defaultRouteCoordinates, {
+              color: 'blue'
+            }).addTo(map);
+
+            // Obsługa zmiany wybranego wariantu trasy
+            routeVariantSelect.addEventListener('change', function () {
+              var selectedVariant = this.value;
+              var selectedCoordinates = data.features.find(feature => feature.properties.route_variant_number == selectedVariant).geometry.coordinates;
+              var selectedRouteCoordinates = selectedCoordinates.map(coordinate => [coordinate[1], coordinate[0]]);
+
+              // Usuń istniejącą linię
+              map.eachLayer(function (layer) {
+                if (layer instanceof L.Polyline) {
+                  map.removeLayer(layer);
+                }
+              });
+
+              // Dodaj nową linię dla wybranego wariantu
+              var newPolyline = L.polyline(selectedRouteCoordinates, {
+                color: 'blue'
+              }).addTo(map);
+            });
+
+          } else {
+            console.error('Brak danych o trasie w odpowiedzi z API.');
+          }
+        })
+        .catch(error => {
+          console.error('Błąd pobierania danych z API:', error);
+        });
+    } else {
+      console.error('Brak parametru lineId w adresie URL.');
+    }
+  </script>
+
+</body>
+
+</html>

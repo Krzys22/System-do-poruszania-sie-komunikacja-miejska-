@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title></title>
+    <title>Mapa z markerami i informacjami o przystankach</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <style>
-        .leaflet-popup-content-wrapper{
+        .leaflet-popup-content-wrapper {
             background-color: black;
         }
+
         @font-face {
             font-family: 'Digital-7';
             src: url('/Users/szymonmarczak/Desktop/ZDiTM/digital-7.ttf') format('truetype');
@@ -20,34 +21,34 @@
             width: 100%;
             height: 700px;
         }
-        /* Dodaj niestandardowe style dla popupu */
+
         .custom-popup {
-            max-width: 500px; /* Maksymalna szerokość */
-           
+            max-width: 500px;
         }
+
         .leaflet-popup-content {
-
-            background-image:url('/Users/szymonmarczak/Desktop/ZDiTM/Tablica.png'); /* Tło popupu z przezroczystością */
+            background-image: url('/Users/szymonmarczak/Desktop/ZDiTM/Tablica.png');
             background-size: 320px 200px;
-            color: white; /* Biała czcionka */
-            padding: 10px; /* Dodatkowe wewnętrzne marginesy dla lepszego wyglądu */
-
-           
+            color: white;
+            padding: 10px;
         }
-        /* Ustaw szerokość komórki "Kierunek" na sztywno */
+
         table tr td.direction {
-            min-width: 185px;/* Ustaw szerokość kolumny "Kierunek" na sztywno na 150 pikseli */
+            min-width: 185px;
             max-width: 185px;
         }
+
         table tr td.line {
             min-width: 48px;
             padding-left: 5px;
         }
-         table {
-            margin-top: 42px; /* Dodatkowy margines na górze */
+
+        table {
+            margin-top: 42px;
         }
-        nazwa_przystanku{
-            color:black;
+
+        .nazwa_przystanku {
+            color: black;
         }
     </style>
 </head>
@@ -56,43 +57,102 @@
     <div id="map"></div>
 
     <script>
-        
-        document.addEventListener("DOMContentLoaded", function() {
-            const stopsEndpoint = "https://www.zditm.szczecin.pl/api/v1/stops"; // Endpoint dla przystanków
+        document.addEventListener("DOMContentLoaded", function () {
+            const stopsEndpoint = "https://www.zditm.szczecin.pl/api/v1/stops";
+            const vehiclesEndpoint = "https://www.zditm.szczecin.pl/api/v1/vehicles";
             const map = L.map("map").setView([53.42894, 14.55302], 12);
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
-            const customIcon = L.icon({
+
+            const stopIcon = L.icon({
                 iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/przystanek_grafika.png',
-                iconSize: [26, 48], // Rozmiary ikony
-                iconAnchor: [16, 32], // Punkt zakotwiczenia ikony
-                popupAnchor: [0, -32] // Punkt zakotwiczenia popupu
+                iconSize: [26, 48],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
             });
-            const markers = L.markerClusterGroup();
+
+            const tramIcon = L.icon({
+                iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/tramwaj_grafika.png',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            const busIcon = L.icon({
+                iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/bus_grafika.png',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            const locationIcon = L.icon({
+                iconUrl: '/Users/szymonmarczak/Desktop/ZDiTM/25530.jpg',
+                iconSize: [30, 30],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
+
+            const stopMarkers = L.markerClusterGroup();
+            const locationMarkers = L.layerGroup();
+            let lastKnownLocation = null;
+
             fetchData();
+
             function fetchData() {
                 fetch(stopsEndpoint)
                     .then(response => response.json())
-                    .then(data => {
-                        displayStopsOnMap(data);
+                    .then(stopsData => {
+                        displayStopsOnMap(stopsData);
+                        fetchVehiclesData();
                     })
                     .catch(error => {
                         console.error("Wystąpił błąd:", error);
                     });
             }
-            function displayStopsOnMap(data) {
-                data.data.forEach(item => {
-                    // Dodawanie markerów na mapie
-                    const marker = L.marker([item.latitude, item.longitude], { icon: customIcon })
+
+            function fetchVehiclesData() {
+                fetch(vehiclesEndpoint)
+                    .then(response => response.json())
+                    .then(vehiclesData => {
+                        displayVehiclesOnMap(vehiclesData);
+                        if (!lastKnownLocation) {
+                            enableGeolocation();
+                        }
+                        setInterval(fetchVehiclesData, 15000);
+                    })
+                    .catch(error => {
+                        console.error("Wystąpił błąd:", error);
+                    });
+            }
+
+            function enableGeolocation() {
+                if ('geolocation' in navigator) {
+                    navigator.geolocation.getCurrentPosition(position => {
+                        const { latitude, longitude } = position.coords;
+                        lastKnownLocation = L.latLng(latitude, longitude);
+                        const locationMarker = L.marker(lastKnownLocation, { icon: locationIcon })
+                            .bindPopup('Twoja aktualna pozycja');
+                        locationMarkers.addLayer(locationMarker);
+                        map.addLayer(locationMarkers);
+                    }, error => {
+                        console.error('Błąd geolokalizacji:', error.message);
+                    });
+                } else {
+                    console.error('Twoja przeglądarka nie obsługuje geolokalizacji.');
+                }
+            }
+
+            function displayStopsOnMap(stopsData) {
+                stopsData.data.forEach(item => {
+                    const marker = L.marker([item.latitude, item.longitude], { icon: stopIcon })
                         .bindPopup(`Nazwa: ${item.name}`, { className: 'custom-popup' });
 
                     marker.on('popupopen', function () {
-                        // Obsługa zdarzenia kliknięcia na markerze
                         displayDeparturesInfo(marker, item);
                     });
 
-                    markers.addLayer(marker);
+                    stopMarkers.addLayer(marker);
                 });
-                map.addLayer(markers);
+                map.addLayer(stopMarkers);
             }
 
             function displayDeparturesInfo(marker, item) {
@@ -102,7 +162,7 @@
                     fetch(timetablesEndpoint)
                         .then(response => response.json())
                         .then(timetablesData => {
-                            const firstTwoDepartures = timetablesData.departures.slice(0, 5); // Ograniczenie do 5 odjazdów
+                            const firstTwoDepartures = timetablesData.departures.slice(0, 5);
                             const departuresInfo = firstTwoDepartures.map(departure => {
                                 const departureTime = departure.time_real !== null ? ` ${departure.time_real} min` : (departure.time_scheduled !== null ? `${departure.time_scheduled}` : "Brak informacji");
                                 const line = departure.line_number !== null ? `${departure.line_number}` : "";
@@ -128,17 +188,51 @@
                             marker.getPopup().setContent(`
                                 ${item.name}
                                 <span style=";font-family:Digital-7; color:#faa702; font-size:16px;">${now.getHours() + ":" + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes()}</span> 
-                                <br>${table}`) ;
+                                <br>${table}`);
                         })
                         .catch(error => {
                             console.error("Wystąpił błąd:", error);
                         });
                 }
 
-                updatePopupContent(); // Pierwsze wywołanie funkcji aktualizującej zawartość popupu
+                updatePopupContent();
 
-                setInterval(updatePopupContent, 15000); // Odświeżanie co 30 sekund
-                
+                setInterval(updatePopupContent, 15000);
+            }
+
+            function displayVehiclesOnMap(vehiclesData) {
+                const vehicleMarkers = L.layerGroup();
+                vehiclesData.data.forEach(item => {
+                    let icon;
+                    if (item.vehicle_type === 'tram') {
+                        icon = tramIcon;
+                    } else if (item.vehicle_type === 'bus') {
+                        icon = busIcon;
+                    }
+
+                    const vehicleMarker = L.marker([item.latitude, item.longitude], { icon: icon })
+                        .bindPopup(`Numer linii: ${item.line_number}<br/>Kierunek: ${item.direction}<br/>Numer pojazdu: ${item.vehicle_number}<br/>Prędkość: ${item.velocity} km/h`);
+
+                    vehicleMarker.on('popupopen', function () {
+                        displayVehicleInfo(vehicleMarker, item);
+                    });
+
+                    vehicleMarkers.addLayer(vehicleMarker);
+                });
+
+                map.addLayer(vehicleMarkers);
+            }
+
+            function displayVehicleInfo(vehicleMarker, item) {
+                const vehiclePopupContent = `
+                    <div style="background-color: black; color: white; padding: 10px;">
+            Numer linii: ${item.line_number}<br/>
+            Kierunek: ${item.direction}<br/>
+            Numer pojazdu: ${item.vehicle_number}<br/>
+            Prędkość: ${item.velocity} km/h
+        </div>
+                `;
+                vehicleMarker.getPopup().setContent(vehiclePopupContent);
             }
         });
     </script>
