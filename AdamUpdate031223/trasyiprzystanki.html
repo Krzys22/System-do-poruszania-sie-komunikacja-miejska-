@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaflet Map with Vehicle Positions</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 800px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+ 
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    var map = L.map('map').setView([53.4571634728, 14.4884117153], 15);
+ 
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const lineId = urlParams.get('lineId');
+    const markers = [];
+
+    function updateMapWithVehicles() {
+      // Make a request to the API endpoint
+      fetch(`https://www.zditm.szczecin.pl/api/v1/trajectories/${lineId}?variant=default`)
+        .then(response => response.json())
+        .then(geoJSONData => {
+          // Filter GeoJSON features to include specific variants
+          var filteredFeatures = geoJSONData.features.filter(feature => {
+            // Include features with three digits at the end, where the last two are 11 or 12
+            return /^([1-9])?(11|12|21|22)$/.test(feature.properties.route_variant_number);
+            });
+
+          // Create a new GeoJSON object with the filtered features
+          var filteredGeoJSON = {
+            type: "FeatureCollection",
+            features: filteredFeatures
+          };
+ 
+          // Clear existing map layers
+          map.eachLayer(layer => {
+            if (layer instanceof L.GeoJSON) {
+              map.removeLayer(layer);
+            }
+          });
+
+          // Add GeoJSON data to the map
+          L.geoJSON(filteredGeoJSON).addTo(map);
+ 
+          // Optionally, you can fit the map bounds to the GeoJSON layer
+          map.fitBounds(L.geoJSON(filteredGeoJSON).getBounds());
+ 
+          // Fetch all vehicle data from the API
+          fetch(`https://www.zditm.szczecin.pl/api/v1/vehicles`)
+            .then(response => response.json())
+            .then(vehicleData => {
+              // Filter vehicles based on the line ID
+              var filteredVehicles = vehicleData.data.filter(vehicle => vehicle.line_id === lineId);
+ 
+              // Add new markers for each filtered vehicle
+              filteredVehicles.forEach(vehicle => {
+                if (vehicle.latitude && vehicle.longitude) {
+                  var newMarker = L.marker([vehicle.latitude, vehicle.longitude])
+                    .bindPopup(`Vehicle ID: ${vehicle.vehicle_id}<br>Line: ${vehicle.line_number}`)
+                    .addTo(map);
+
+                  markers.push(newMarker);
+                }
+              });
+            })
+            .catch(error => console.error('Error fetching vehicle data:', error));
+        })
+        .catch(error => console.error('Error fetching trajectory data:', error));
+    }
+ 
+    // Call the update function initially
+    updateMapWithVehicles();
+ 
+    // Set an interval to update map with vehicles positions every 30 seconds
+    setInterval(updateMapWithVehicles, 30000);
+  </script>
+</body>
+</html>
